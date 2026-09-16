@@ -30,7 +30,7 @@ jobs:
           echo "$HOME/neutron-clang/bin" >> $GITHUB_PATH
 
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
+        uses: hendrikmuhs/ccache-action@v1
         with:
           max-size: 2G
           key: scarlet-redwood
@@ -39,17 +39,18 @@ jobs:
         working-directory: kernel
         run: |
           export PATH="$HOME/neutron-clang/bin:$PATH"
-          make O=out ARCH=arm64 CC="ccache clang" xiaomi-qgki_defconfig redwood.config
+          make O=out ARCH=arm64 CC="ccache clang" \
+            vendor/xiaomi-qgki_defconfig vendor/redwood.config
 
       - name: Disable module signature verification
         working-directory: kernel
         run: |
+          export PATH="$HOME/neutron-clang/bin:$PATH"
           ./scripts/config --file out/.config \
             -d MODULE_SIG \
             -d MODULE_SIG_FORCE \
             -d MODULE_SIG_ALL \
             -d MODULE_SIG_SHA512
-          export PATH="$HOME/neutron-clang/bin:$PATH"
           make O=out ARCH=arm64 CC="ccache clang" olddefconfig
 
       - name: Build kernel
@@ -61,21 +62,3 @@ jobs:
           export LLVM=1
           export LLVM_IAS=1
           export KBUILD_BUILD_USER=aafiq
-          export KBUILD_BUILD_HOST=github-actions
-          make -j$(nproc --all) O=out ARCH=arm64 CC="ccache clang" \
-            LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump STRIP=llvm-strip
-
-      - name: Package with AnyKernel3
-        run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3
-          cp kernel/out/arch/arm64/boot/Image AnyKernel3/
-          cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/ 2>/dev/null || true
-          cd AnyKernel3
-          zip -r9 ../Scarlet-redwood-$(date +%Y%m%d).zip * -x .git README.md
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Scarlet-redwood-kernel
-          path: Scarlet-redwood-*.zip
