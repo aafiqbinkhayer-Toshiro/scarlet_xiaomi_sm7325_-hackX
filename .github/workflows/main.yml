@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout kernel source
         uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
         working-directory: kernel
         run: |
           if [ ! -f out/arch/arm64/boot/Image ]; then
-            echo "::error::Image not found — build actually failed silently upstream"
+            echo "::error::Image not found — build failed silently upstream"
             exit 1
           fi
           ls -la out/arch/arm64/boot/
