@@ -3,6 +3,9 @@ name: Build Scarlet Kernel (redwood)
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -47,10 +50,8 @@ jobs:
         run: |
           export PATH="$HOME/neutron-clang/bin:$PATH"
           ./scripts/config --file out/.config \
-            -d MODULE_SIG \
-            -d MODULE_SIG_FORCE \
-            -d MODULE_SIG_ALL \
-            -d MODULE_SIG_SHA512
+            -d MODULE_SIG -d MODULE_SIG_FORCE \
+            -d MODULE_SIG_ALL -d MODULE_SIG_SHA512
           make O=out ARCH=arm64 CC="ccache clang" olddefconfig
 
       - name: Build kernel
@@ -62,3 +63,33 @@ jobs:
           export LLVM=1
           export LLVM_IAS=1
           export KBUILD_BUILD_USER=aafiq
+          export KBUILD_BUILD_HOST=github-actions
+          make -j$(nproc --all) O=out ARCH=arm64 CC="ccache clang" \
+            LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump STRIP=llvm-strip
+
+      - name: Verify build output
+        working-directory: kernel
+        run: |
+          if [ ! -f out/arch/arm64/boot/Image ]; then
+            echo "::error::Image not found — build actually failed silently upstream"
+            exit 1
+          fi
+          ls -la out/arch/arm64/boot/
+
+      - name: Package with AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3
+          cp kernel/out/arch/arm64/boot/Image AnyKernel3/
+          cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/ 2>/dev/null || true
+          cd AnyKernel3
+          zip -r9 ../Scarlet-redwood-$(date +%Y%m%d)-${{ github.run_number }}.zip * -x .git README.md
+
+      - name: Release to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Scarlet redwood build #${{ github.run_number }}
+          files: Scarlet-redwood-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
